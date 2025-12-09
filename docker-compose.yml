@@ -1,0 +1,28 @@
+version: "3"
+
+volumes:
+  kestra-data:
+    driver: local
+
+services:
+  kestra:
+    image: kestra/kestra:latest
+    container_name: kestra
+    command: server local
+    ports:
+      - "8080:8080"
+    volumes:
+      - kestra-data:/app/storage
+      # SECURITY NOTE: Docker socket mount is required for Local Executor.
+      # This is a development-only configuration. 
+      # Production environments should use Kestra Cloud or Kubernetes runners.
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      KESTRA_CONFIGURATION: |
+        kestra:
+          server:
+            basicAuth:
+              # Must be a valid email format
+              username: admin@hackathon.com
+              # Must be 8+ chars, 1 Uppercase, 1 Number
+              password: Hackathon123
