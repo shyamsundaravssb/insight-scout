@@ -2,45 +2,37 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { topic } = await request.json();
+    const { topic } = await request.json(); // "topic" comes from frontend
 
-    // 1. FIX: Input Validation (CodeRabbit Suggestion)
-    if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Topic is required and must be a non-empty string" },
-        { status: 400 }
-      );
+    // VALIDATION
+    if (!topic || typeof topic !== 'string') {
+      return NextResponse.json({ error: "Brand name required" }, { status: 400 });
     }
 
-    // 2. FIX: Use Env Vars (CodeRabbit Suggestion)
-    const KESTRA_URL = process.env.KESTRA_API_URL;
-    const USERNAME = process.env.KESTRA_USERNAME;
-    const PASSWORD = process.env.KESTRA_PASSWORD;
+    // 1. UPDATE: Point to the new Crisis Radar flow
+    // Note: If you are using .env, update the URL there. For now, we update it here.
+    const KESTRA_URL = "http://localhost:8080/api/v1/executions/dev/crisis-radar-agent";
+    
+    // 2. CREDENTIALS (from .env or hardcoded for now if you haven't set .env yet)
+    // Remember your credentials: admin@hackathon.com / Hackathon123
+    const USERNAME = process.env.KESTRA_USERNAME || "admin@hackathon.com";
+    const PASSWORD = process.env.KESTRA_PASSWORD || "Hackathon123";
 
-    if (!KESTRA_URL || !USERNAME || !PASSWORD) {
-      throw new Error("Server configuration error: Missing Kestra Environment variables.");
-    }
-
-    // 3. FIX: Secure Credentials
     const authHeader = "Basic " + Buffer.from(`${USERNAME}:${PASSWORD}`).toString("base64");
     
-    // Kestra requires inputs as FormData
     const formData = new FormData();
-    formData.append("topic", topic);
+    // 3. UPDATE: Match the input ID in YAML ('brand_name')
+    formData.append("brand_name", topic);
 
     const response = await fetch(KESTRA_URL, {
       method: "POST",
-      headers: {
-        "Authorization": authHeader,
-      },
+      headers: { "Authorization": authHeader },
       body: formData, 
     });
 
     if (!response.ok) {
-        // 4. FIX: Sanitized Error Handling
         const text = await response.text();
-        console.error("Kestra API Error:", text); // Log full error on server
-        throw new Error(`External API Error: ${response.status}`); // Send generic error to client
+        throw new Error(`Kestra API Error: ${response.status} - ${text}`);
     }
 
     const data = await response.json();
@@ -48,14 +40,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
         success: true, 
         executionId: data.id,
-        message: "Agent Triggered Successfully"
+        message: "Crisis Radar Activated"
     });
 
   } catch (error) {
     console.error("Route Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to start agent" }, { status: 500 });
   }
 }
