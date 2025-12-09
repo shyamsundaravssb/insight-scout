@@ -2,29 +2,42 @@
 import { useState } from "react";
 
 export default function Home() {
+  // 1. Define the state for 'topic' so TypeScript knows what it is
+  const [topic, setTopic] = useState("Local Docker Test"); 
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
   const runAgent = async () => {
+    // Input validation (Good practice)
+    if (!topic) {
+      setResult("❌ Error: Topic cannot be empty");
+      return;
+    }
+
     setLoading(true);
     setResult("Sending request to Kestra...");
     
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
-        body: JSON.stringify({ topic: "Local Docker Test" }),
+        // 2. FIX: Add Content-Type Header (Satisfies CodeRabbit)
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ topic }),
       });
       
       const data = await res.json();
       
-      if (data.executionId) {
-        setResult(`✅ Success! Kestra Execution ID: ${data.executionId}\nCheck your Kestra UI (Executions tab) to see it running.`);
+      // 3. FIX: Check response status explicitly (Satisfies CodeRabbit)
+      if (res.ok && data.executionId) {
+        setResult(`✅ Success! Kestra Execution ID: ${data.executionId}\nCheck your Kestra UI.`);
       } else {
-        setResult(`❌ Error: ${JSON.stringify(data)}`);
+        setResult(`❌ Error: ${data.error || "Failed to trigger agent"}`);
       }
       
     } catch (e) {
-      setResult(`❌ Connection Failed: ${e}`);
+      setResult(`❌ Connection Failed`);
     } finally {
       setLoading(false);
     }
@@ -35,9 +48,14 @@ export default function Home() {
       <h1 className="text-3xl font-bold mb-8">InsightScout: Connection Test</h1>
       
       <div className="p-6 border rounded-lg shadow-md max-w-md w-full bg-white text-black">
-        <p className="mb-4 text-gray-600">
-          Click below to trigger the Kestra Agent running on your laptop.
-        </p>
+        {/* Simple input to verify we can change the topic */}
+        <input 
+            type="text" 
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            className="w-full p-2 mb-4 border rounded"
+            placeholder="Enter topic..."
+        />
         
         <button 
           onClick={runAgent} 

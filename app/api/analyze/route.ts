@@ -4,14 +4,29 @@ export async function POST(request: Request) {
   try {
     const { topic } = await request.json();
 
-    const KESTRA_URL = "http://localhost:8080/api/v1/executions/dev/local-agent-test";
+    // 1. FIX: Input Validation (CodeRabbit Suggestion)
+    if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Topic is required and must be a non-empty string" },
+        { status: 400 }
+      );
+    }
 
+    // 2. FIX: Use Env Vars (CodeRabbit Suggestion)
+    const KESTRA_URL = process.env.KESTRA_API_URL;
+    const USERNAME = process.env.KESTRA_USERNAME;
+    const PASSWORD = process.env.KESTRA_PASSWORD;
+
+    if (!KESTRA_URL || !USERNAME || !PASSWORD) {
+      throw new Error("Server configuration error: Missing Kestra Environment variables.");
+    }
+
+    // 3. FIX: Secure Credentials
+    const authHeader = "Basic " + Buffer.from(`${USERNAME}:${PASSWORD}`).toString("base64");
+    
+    // Kestra requires inputs as FormData
     const formData = new FormData();
     formData.append("topic", topic);
-
-    // UPDATED CREDENTIALS HERE:
-    // User: admin@hackathon.com | Pass: Hackathon123
-    const authHeader = "Basic " + Buffer.from("admin@hackathon.com:Hackathon123").toString("base64");
 
     const response = await fetch(KESTRA_URL, {
       method: "POST",
@@ -22,8 +37,10 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
+        // 4. FIX: Sanitized Error Handling
         const text = await response.text();
-        throw new Error(`Kestra API Error: ${response.status} ${response.statusText} - ${text}`);
+        console.error("Kestra API Error:", text); // Log full error on server
+        throw new Error(`External API Error: ${response.status}`); // Send generic error to client
     }
 
     const data = await response.json();
@@ -31,13 +48,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
         success: true, 
         executionId: data.id,
-        message: "Agent Triggered Successfully on Localhost!"
+        message: "Agent Triggered Successfully"
     });
 
   } catch (error) {
-    console.error("Connection Error:", error);
+    console.error("Route Error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
