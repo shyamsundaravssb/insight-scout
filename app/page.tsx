@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AlertTriangle, CheckCircle, ShieldAlert, Activity } from "lucide-react";
 
 export default function Home() {
@@ -7,15 +7,28 @@ export default function Home() {
   const [status, setStatus] = useState("IDLE"); 
   const [result, setResult] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  
+  // FIX 1: Use Ref for interval to prevent memory leaks
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   const runRadar = async () => {
     if (!brand) return;
+    
+    // Clear any existing polling
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
     setStatus("SCANNING");
     setLogs(["🚀 Initializing Crisis Radar...", "🔗 Connecting to Kestra Agent..."]);
     setResult(null);
 
     try {
-      // 1. Trigger the Agent
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -27,22 +40,33 @@ export default function Home() {
       const executionId = data.executionId;
       setLogs(prev => [...prev, `✅ Agent Triggered (ID: ${executionId})`, "🔎 Agent is scanning news sources...", "🧠 Llama-3 is analyzing sentiment..."]);
 
-      // 2. Start Polling for Results
-      const pollInterval = setInterval(async () => {
-        const statusRes = await fetch(`/api/status?id=${executionId}`);
-        const statusData = await statusRes.json();
+      // FIX 2: Robust Polling Logic
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+            const statusRes = await fetch(`/api/status?id=${executionId}`);
+            
+            if (!statusRes.ok) {
+                console.error("Status poll failed:", statusRes.status);
+                return; 
+            }
 
-        if (statusData.status === "COMPLETE") {
-          clearInterval(pollInterval);
-          setResult(statusData.data); // Save the JSON data
-          setStatus("COMPLETE");
-          setLogs(prev => [...prev, "✅ Analysis Complete."]);
-        } else if (statusData.status === "FAILED") {
-          clearInterval(pollInterval);
-          setStatus("ERROR");
-          setLogs(prev => [...prev, "❌ Agent Execution Failed."]);
+            const statusData = await statusRes.json();
+
+            if (statusData.status === "COMPLETE") {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              setResult(statusData.data);
+              setStatus("COMPLETE");
+              setLogs(prev => [...prev, "✅ Analysis Complete."]);
+            } else if (statusData.status === "FAILED") {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              setStatus("ERROR");
+              setLogs(prev => [...prev, "❌ Agent Execution Failed."]);
+            }
+        } catch (err) {
+            console.error("Polling error:", err);
+            // Optional: Stop polling on repeated errors
         }
-      }, 2000); // Check every 2 seconds
+      }, 2000);
 
     } catch (e) {
       setStatus("ERROR");
@@ -58,7 +82,6 @@ export default function Home() {
           <h1 className="text-4xl font-bold tracking-tight">Crisis<span className="text-blue-500">Radar</span></h1>
         </header>
 
-        {/* Search Bar */}
         <div className="flex gap-4 mb-8">
           <input 
             type="text" 
@@ -80,7 +103,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* RESULTS CARD */}
         {status === "COMPLETE" && result && (
           <div className={`p-8 rounded-2xl border-2 shadow-2xl animate-in fade-in slide-in-from-bottom-4 ${
             result.status === "CRITICAL" 
@@ -112,7 +134,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* LOGS */}
         {status !== "COMPLETE" && logs.length > 0 && (
           <div className="bg-black/50 rounded-lg p-6 font-mono text-sm border border-slate-800">
             {logs.map((log, i) => (

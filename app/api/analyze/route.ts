@@ -2,27 +2,29 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { topic } = await request.json(); // "topic" comes from frontend
+    // FIX 1: Consistent Naming (CodeRabbit Recommendation)
+    const { topic: brandName } = await request.json();
 
     // VALIDATION
-    if (!topic || typeof topic !== 'string') {
+    if (!brandName || typeof brandName !== 'string') {
       return NextResponse.json({ error: "Brand name required" }, { status: 400 });
     }
 
-    // 1. UPDATE: Point to the new Crisis Radar flow
-    // Note: If you are using .env, update the URL there. For now, we update it here.
-    const KESTRA_URL = "http://localhost:8080/api/v1/executions/dev/crisis-radar-agent";
-    
-    // 2. CREDENTIALS (from .env or hardcoded for now if you haven't set .env yet)
-    // Remember your credentials: admin@hackathon.com / Hackathon123
-    const USERNAME = process.env.KESTRA_USERNAME || "admin@hackathon.com";
-    const PASSWORD = process.env.KESTRA_PASSWORD || "Hackathon123";
+    // FIX 2: Security - No Hardcoded Credentials
+    const KESTRA_URL = process.env.KESTRA_FLOW_URL;
+    const USERNAME = process.env.KESTRA_USERNAME;
+    const PASSWORD = process.env.KESTRA_PASSWORD;
+
+    if (!KESTRA_URL || !USERNAME || !PASSWORD) {
+      console.error("Missing Kestra configuration");
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
 
     const authHeader = "Basic " + Buffer.from(`${USERNAME}:${PASSWORD}`).toString("base64");
     
     const formData = new FormData();
-    // 3. UPDATE: Match the input ID in YAML ('brand_name')
-    formData.append("brand_name", topic);
+    // Consistent variable usage
+    formData.append("brand_name", brandName);
 
     const response = await fetch(KESTRA_URL, {
       method: "POST",
