@@ -1,0 +1,132 @@
+id: career-ops-pro
+namespace: dev
+description: "360° Career Intelligence: Salary, Culture, and Resume Gap Analysis."
+
+inputs:
+  - id: company_name
+    type: STRING
+    defaults: "Google"
+  - id: job_role
+    type: STRING
+    defaults: "Software Engineer"
+  - id: experience_level
+    type: STRING
+    defaults: "Senior"
+  - id: resume_text
+    type: STRING
+    defaults: "Experienced developer with..."
+
+tasks:
+  - id: analysis_cluster
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+      
+      # BRANCH 1: CULTURE
+      - id: branch_culture
+        type: io.kestra.plugin.core.flow.Sequential
+        tasks:
+          - id: search_news
+            type: io.kestra.plugin.core.http.Request
+            uri: "https://api.tavily.com/search"
+            method: "POST"
+            contentType: "application/json"
+            body: |
+              {
+                "api_key": "INSERT_TAVILY_KEY_HERE",
+                "query": "latest news {{ inputs.company_name }} engineering culture problems",
+                "max_results": 3
+              }
+          - id: analyze_culture
+            type: io.kestra.plugin.ai.completion.ChatCompletion
+            provider:
+              type: io.kestra.plugin.ai.provider.OpenAI
+              baseUrl: "https://api.groq.com/openai/v1"
+              apiKey: "INSERT_GROQ_KEY_HERE"
+              modelName: "llama-3.3-70b-versatile"
+            messages:
+              - type: "USER"
+                content: |
+                  Analyze news: {{ outputs.search_news.body }}
+                  
+                  OUTPUT INSTRUCTIONS:
+                  - Write a "Brief": A 1-sentence summary of what the company does and its market standing.
+                  - Identify 3 "Employee Pros": Specific benefits, culture perks, or growth opportunities (e.g., "Remote friendly", "High bonus").
+                  - Identify 3 "Employee Cons": Specific pain points for staff (e.g., "Long hours", "Frequent reorgs").
+                  - Calculate a "Culture Score" (0-100).
+                  - Return ONLY valid JSON.
+                  
+                  JSON Format:
+                  { 
+                    "brief": "Company X is a leading...",
+                    "icebreakers": ["News 1...", "News 2..."], 
+                    "pros": ["Employee Pro 1", "Employee Pro 2", "Employee Pro 3"],
+                    "cons": ["Employee Con 1", "Employee Con 2", "Employee Con 3"],
+                    "score": 85
+                  }
+
+      # BRANCH 2: SALARY
+      - id: branch_salary
+        type: io.kestra.plugin.core.flow.Sequential
+        tasks:
+          - id: search_salary
+            type: io.kestra.plugin.core.http.Request
+            uri: "https://api.tavily.com/search"
+            method: "POST"
+            contentType: "application/json"
+            body: |
+              {
+                "api_key": "INSERT_TAVILY_KEY_HERE",
+                "query": "{{ inputs.job_role }} {{ inputs.experience_level }} salary {{ inputs.company_name }} levels.fyi glassdoor",
+                "max_results": 3
+              }
+          - id: analyze_salary
+            type: io.kestra.plugin.ai.completion.ChatCompletion
+            provider:
+              type: io.kestra.plugin.ai.provider.OpenAI
+              baseUrl: "https://api.groq.com/openai/v1"
+              apiKey: "INSERT_GROQ_KEY_HERE"
+              modelName: "llama-3.3-70b-versatile"
+            messages:
+              - type: "USER"
+                content: |
+                  Data: {{ outputs.search_salary.body }}
+                  
+                  OUTPUT INSTRUCTIONS:
+                  - Return ONLY valid JSON.
+                  - NO intro text. NO markdown code blocks.
+                  
+                  JSON Format:
+                  { "min_salary": "$X", "max_salary": "$Y", "currency": "USD", "skills_leverage": "..." }
+
+      # BRANCH 3: RESUME
+      - id: analyze_resume
+        type: io.kestra.plugin.ai.completion.ChatCompletion
+        provider:
+          type: io.kestra.plugin.ai.provider.OpenAI
+          baseUrl: "https://api.groq.com/openai/v1"
+          apiKey: "INSERT_GROQ_KEY_HERE"
+          modelName: "llama-3.3-70b-versatile"
+        messages:
+          - type: "USER"
+            content: |
+              RESUME: {{ inputs.resume_text }}
+              ROLE: {{ inputs.job_role }} at {{ inputs.company_name }}
+              
+              OUTPUT INSTRUCTIONS:
+              - Return ONLY valid JSON.
+              - NO intro text. NO markdown code blocks.
+              
+              JSON Format:
+              { "missing_skills": ["Skill 1", "Skill 2"], "gap_analysis": "Summary..." }
+
+  # ---------------------------------------------------------
+  # AGGREGATION: MERGE & CLEAN
+  # ---------------------------------------------------------
+  - id: merge_results
+    type: io.kestra.plugin.core.debug.Return
+    format: |
+      {
+        "culture": {{ outputs.analyze_culture.completion }},
+        "salary": {{ outputs.analyze_salary.completion }},
+        "resume": {{ outputs.analyze_resume.completion }}
+      }
