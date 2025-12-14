@@ -24,36 +24,31 @@ export async function GET(request: Request) {
     const state = data.state.current;
 
     if (state === "SUCCESS") {
-      // FIX 1: Look for the correct task ID from the 'career-ops-pro' flow
+      // Find the merge task
       const returnTask = data.taskRunList.find((t: any) => t.taskId === 'merge_results'); 
       
       if (returnTask && returnTask.outputs && returnTask.outputs.value) {
         let rawText = returnTask.outputs.value;
         
-        // Aggressive JSON Extraction (Finds the outer-most JSON object)
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        // --- 🛡️ THE FIX: GLOBAL MARKDOWN CLEANER ---
+        // This removes ALL ```json and ``` tags from the entire string instantly.
+        // It turns { "culture": ```json {...} ``` } into { "culture": {...} } (Valid JSON)
+        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
         
         try {
-          let parsedData = null;
-          if (jsonMatch) {
-             parsedData = JSON.parse(jsonMatch[0]);
-          } else {
-             parsedData = JSON.parse(rawText);
-          }
-          
+          // Now parsing will succeed because the garbage tags are gone
+          const parsedData = JSON.parse(rawText);
           return NextResponse.json({ status: "COMPLETE", data: parsedData });
 
         } catch (e) {
           console.error("JSON Parse Failed. Raw Text:", rawText);
           
-          // FIX 2: Fallback matches the NEW '360 Intelligence' UI structure
           return NextResponse.json({ 
             status: "COMPLETE", 
             data: { 
               error: "Parsing Failed", 
               raw_output: rawText,
-              // Empty structure to prevent UI crashes
-              culture: { icebreakers: [], red_flags: [] }, 
+              culture: { icebreakers: [], pros: [], cons: [], score: 0 }, 
               salary: { min_salary: "N/A", max_salary: "N/A" }, 
               resume: { missing_skills: [], gap_analysis: "Could not parse analysis." } 
             } 
