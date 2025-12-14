@@ -159,7 +159,7 @@ This project was built specifically to showcase the power of **Kestra** for comp
 
 ## 👨‍💻 Team
 
-  * **Shyam** - Full Stack Engineering & AI Architecture
+  * **Shyam** - Full Stack Engineering & Agentic AI
 
 <!-- end list -->
 
