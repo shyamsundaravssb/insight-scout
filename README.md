@@ -95,7 +95,7 @@ Follow these steps to run the full system on your machine.
 ### 1\. Clone the Repository
 
 ```bash
-git clone [https://github.com/YOUR_USERNAME/insight-scout.git](https://github.com/YOUR_USERNAME/insight-scout.git)
+git clone [https://github.com/shyamsundaravssb/insight-scout.git](https://github.com/shyamsundaravssb/insight-scout.git)
 cd insight-scout
 npm install
 ```
